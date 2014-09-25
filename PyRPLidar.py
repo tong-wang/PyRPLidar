@@ -59,20 +59,7 @@ class RPLidar(object):
         self.error_q = Queue.Queue()
         
         self.frameData = FrameData()
-        self.environmentFrame = np.empty([361,2]);
-        self.environmentFrame.fill(100000)
-        self.environmentX = np.empty(361)
-        self.environmentY = np.empty(361)
         
-        #setup plot
-        plt.ion()
-        self.figure = plt.figure(figsize=(6, 6), dpi=160, facecolor='w', edgecolor='k')
-        self.ax = self.figure.add_subplot(111)
-        self.lines, = self.ax.plot([],[], linestyle='none', marker='.', markersize=3, markerfacecolor='blue')
-        self.environment, = self.ax.plot([],[], linestyle='none', marker='.', markersize=3, markerfacecolor='red')
-        self.ax.set_xlim(-5000, 5000)
-        self.ax.set_ylim(-5000, 5000)
-        self.ax.grid()
         
         
     def connect(self):
@@ -240,13 +227,26 @@ class RPLidar(object):
             i = i+1
     
     
-
-    def updatePlot(self):
-        """ Updates the state of the monitor window with new 
-            data. The livefeed is used to find out whether new
-            data was received since the last update. If not, 
-            nothing is updated.
+    def initXYPlot(self):
         """
+        setup an XY plot canvas
+        """
+        
+        plt.ion()
+        self.figure = plt.figure(figsize=(6, 6), dpi=160, facecolor='w', edgecolor='k')
+        self.ax = self.figure.add_subplot(111)
+        self.lines, = self.ax.plot([],[], linestyle='none', marker='.', markersize=3, markerfacecolor='blue')
+        self.ax.set_xlim(-5000, 5000)
+        self.ax.set_ylim(-5000, 5000)
+        self.ax.grid()
+    
+    
+    
+    def updateXYPlot(self):
+        """
+        re-draw the XY plot with new frameData
+        """
+
         if self.frameData.has_new_data:
             _framedata = self.frameData.read_data()
         
@@ -254,9 +254,8 @@ class RPLidar(object):
             _y = []
             
             for _point in list(_framedata):
-                if _point['data']['distance'] < self.environmentFrame[round(_point['data']['angle']),1] - 50:
-                    _x.append(_point['data']['distance'] * math.sin((_point['data']['angle']/180.0)*math.pi))
-                    _y.append(_point['data']['distance'] * math.cos((_point['data']['angle']/180.0)*math.pi))
+                _x.append(_point['data']['distance'] * math.sin((_point['data']['angle']/180.0)*math.pi))
+                _y.append(_point['data']['distance'] * math.cos((_point['data']['angle']/180.0)*math.pi))
     
 
             self.lines.set_xdata(_x)
@@ -265,11 +264,38 @@ class RPLidar(object):
             
     
     
+    def initPolarPlot(self):
+        """
+        setup a polar plot canvas
+        """
+
+        plt.ion()
+        self.figure = plt.figure(figsize=(6, 6), dpi=160, facecolor='w', edgecolor='k')
+        self.ax = self.figure.add_subplot(111, polar=True)
+        self.lines, = self.ax.plot([],[], linestyle='none', marker='.', markersize=3, markerfacecolor='blue')
+        self.ax.set_rmax(5000)
+        self.ax.set_theta_direction(-1) #clockwise
+        self.ax.set_theta_offset(math.pi/2) #offset by 90 degree so that 0 degree is at 12 o'clock
+        #self.ax.grid()
+    
 
 
+    def updatePolarPlot(self):
+        """
+        re-draw the polar plot with new frameData
+        """
+        
+        if self.frameData.has_new_data:
+            _framedata = self.frameData.read_data()
+        
+            self.lines.set_xdata([(_point['data']['angle']/180.0)*math.pi for _point in list(_framedata)])
+            self.lines.set_ydata([_point['data']['distance'] for _point in list(_framedata) ] )
+            self.figure.canvas.draw()
+            
+    
 
         
-            
+        
                 
         
         
@@ -295,10 +321,11 @@ if __name__ == "__main__":
 
 
     rplidar.startMonitor()
-
-    for i in range(1000):
+    rplidar.initPolarPlot()
+    
+    for i in range(100):
         rplidar.readFrameFromQueue()
-        rplidar.updatePlot()
+        rplidar.updatePolarPlot()
   
         
     rplidar.stopMonitor()
