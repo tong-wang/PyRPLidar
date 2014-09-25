@@ -311,9 +311,9 @@ class RPLidar(object):
             
     
 
+
+       
         
-        
-                
         
         
         
