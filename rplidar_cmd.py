@@ -104,9 +104,9 @@ rplidar_response_device_point_format = Struct("point_format",
     BitStruct("Byte0", BitField("sync_quality", 6), Flag("syncbit_inverse"), Flag("syncbit")),
     BitStruct("Byte1", BitField("angle_lowbyte", 7), Flag("check_bit")), # =1
     ULInt8("angle_highbyte"),
-    ULInt16("distance_q2"),
-    Value("distance", lambda ctx: ctx["distance_q2"]/4.0),
-    Value("angle", lambda ctx: ((ctx["angle_highbyte"] << 7) | ctx["Byte1"].angle_lowbyte)/64.0)
+    ULInt16("distance_q2")#,
+    #Value("distance", lambda ctx: ctx["distance_q2"]/4.0),
+    #Value("angle", lambda ctx: ((ctx["angle_highbyte"] << 7) | ctx["Byte1"].angle_lowbyte)/64.0)
 )
     
 

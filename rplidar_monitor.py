@@ -1,5 +1,14 @@
+'''
+RPLidar Monitor
+
+Define classes for com port monitor that initiates a thread continuously reading data from serial_port
+
+
+'''
+
 import Queue
 from collections import deque
+import math
 import time
 import threading
 import serial
@@ -14,7 +23,7 @@ toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 
 
-class FrameData(object):
+class RPLidarFrame(object):
     def __init__(self):
         self.cur_data = deque(maxlen=360)
         self.has_new_data = False
@@ -28,10 +37,30 @@ class FrameData(object):
         return self.cur_data
         
         
+class RPLidarPoint(object):
+    def __init__(self, rawPoint):
+
+        self.timestamp = time.clock()
+        self.raw = rawPoint
+        
+        _parsed = rplidar_response_device_point_format.parse(rawPoint)
+        
+        self.syncbit = _parsed.Byte0.syncbit
+        self.syncbit_inverse = _parsed.Byte0.syncbit_inverse
+        self.quality = _parsed.Byte0.sync_quality
+        
+        self.check_bit = _parsed.Byte1.check_bit
+        self.angleD = ((_parsed.angle_highbyte << 7) | _parsed.Byte1.angle_lowbyte) / 64.0
+        self.angle = math.radians(self.angleD)
+        
+        self.distance = _parsed.distance_q2 / 4.0
+        
+
+    
 
 
 
-class RPLidarMonitorThread(threading.Thread):
+class RPLidarMonitor(threading.Thread):
     """ A thread for monitoring a COM port. The COM port is 
         opened when the thread is started.
     
@@ -121,11 +150,8 @@ class RPLidarMonitorThread(threading.Thread):
                 time.sleep(.0001)
 
             rawPoint = self.serial_port.read(5)
-            parsed = rplidar_response_device_point_format.parse(rawPoint)
-            point = dict(start=parsed.Byte0.syncbit, angle=parsed.angle, distance=parsed.distance, check=parsed.Byte1.check_bit, quality=parsed.Byte0.sync_quality)
-            
-            timestamp = time.clock()
-            self.data_q.put((point, timestamp))
+            point = RPLidarPoint(rawPoint)
+            self.data_q.put(point)
             
         # clean up
         if self.serial_port:

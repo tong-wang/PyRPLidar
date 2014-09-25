@@ -1,5 +1,9 @@
 """ 
-sss
+RPLidar Python Driver
+
+...
+...
+
 """
 
 import serial
@@ -44,7 +48,7 @@ class RPLidar(object):
         self.data_q = Queue.Queue()
         self.error_q = Queue.Queue()
         
-        self.frameData = FrameData()
+        self.frameData = RPLidarFrame()
         
         
         
@@ -192,7 +196,7 @@ class RPLidar(object):
         
         if not self._isScanning:
         
-            self.monitor = RPLidarMonitorThread(self)
+            self.monitor = RPLidarMonitor(self)
             self.monitor.start()
             
             try: 
@@ -225,8 +229,8 @@ class RPLidar(object):
     
             
     def readFrameFromQueue(self):
-        """ Called periodically by the update timer to read data
-            from the serial port.
+        """ 
+        read a whole frame from the data queue
         """
         i = 0
         while i < 360:
@@ -235,9 +239,7 @@ class RPLidar(object):
             except Queue.Empty: 
                 continue
             
-            data = dict(timestamp=qdata[1], data=qdata[0])
-
-            self.frameData.add_data(data)
+            self.frameData.add_data(qdata)
             
             i = i+1
     
@@ -269,8 +271,8 @@ class RPLidar(object):
             _y = []
             
             for _point in list(_framedata):
-                _x.append(_point['data']['distance'] * math.sin((_point['data']['angle']/180.0)*math.pi))
-                _y.append(_point['data']['distance'] * math.cos((_point['data']['angle']/180.0)*math.pi))
+                _x.append(_point.distance * math.sin(_point.angle))
+                _y.append(_point.distance * math.cos(_point.angle))
     
 
             self.lines.set_xdata(_x)
@@ -303,8 +305,8 @@ class RPLidar(object):
         if self.frameData.has_new_data:
             _framedata = self.frameData.read_data()
         
-            self.lines.set_xdata([(_point['data']['angle']/180.0)*math.pi for _point in list(_framedata)])
-            self.lines.set_ydata([_point['data']['distance'] for _point in list(_framedata) ] )
+            self.lines.set_xdata([_point.angle for _point in list(_framedata)])
+            self.lines.set_ydata([_point.distance for _point in list(_framedata) ] )
             self.figure.canvas.draw()
             
     
@@ -336,11 +338,13 @@ if __name__ == "__main__":
 
 
     rplidar.startMonitor()
-    rplidar.initPolarPlot()
+    #rplidar.initPolarPlot()
+    rplidar.initXYPlot()
     
     for i in range(100):
         rplidar.readFrameFromQueue()
-        rplidar.updatePolarPlot()
+        #rplidar.updatePolarPlot()
+        rplidar.updateXYPlot()
   
         
     rplidar.stopMonitor()
