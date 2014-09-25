@@ -5,11 +5,9 @@ sss
 import serial
 import math
 import Queue
-from collections import deque
 import numpy as np
 import matplotlib.pyplot as plt
 
-from rplidar_serial  import *
 from rplidar_monitor import *
 
 
@@ -18,18 +16,7 @@ from rplidar_monitor import *
 
 
 
-class FrameData(object):
-    def __init__(self):
-        self.cur_data = deque(maxlen=360)
-        self.has_new_data = False
-    
-    def add_data(self, data):
-        self.cur_data.append(data)
-        self.has_new_data = True
-    
-    def read_data(self):
-        self.has_new_data = False
-        return self.cur_data
+
 
 
 class RPLidar(object):
@@ -51,8 +38,8 @@ class RPLidar(object):
                                 parity=serial.PARITY_NONE,
                                 timeout=timeout)
         
-        #init com_monitor
-        self.com_monitor = None
+        #init monitor
+        self.monitor = None
         self._isScanning = False
         self.data_q = Queue.Queue()
         self.error_q = Queue.Queue()
@@ -86,7 +73,7 @@ class RPLidar(object):
     def stop(self):
         
         #stop scanning
-        sendCommand(self.serial_port, RPLIDAR_CMD_STOP)
+        self.sendCommand(RPLIDAR_CMD_STOP)
 
         time.sleep(0.1) #it seems to be very important to have a pause here until the STOP command is executed by RPLidar
         
@@ -95,9 +82,41 @@ class RPLidar(object):
 
     
     def reset(self):
-        sendCommand(self.serial_port, RPLIDAR_CMD_RESET) #reset
+        self.sendCommand(RPLIDAR_CMD_RESET) #reset
+
         
 
+    def sendCommand(self, command):
+        
+        cmdBytes = rplidar_command_format.build(Container(syncByte = RPLIDAR_CMD_SYNC_BYTE, cmd_flag = command))
+        self.serial_port.write(cmdBytes)
+    
+    
+    
+    
+    def waitResponseHeader(self, timeout=1):
+        
+        _startTime = time.time()
+        
+        while time.time() < _startTime + timeout:
+            if self.serial_port.inWaiting() < rplidar_response_header_format.sizeof():
+                #print serial_port.inWaiting()
+                time.sleep(0.01)
+            else:
+                _raw = self.serial_port.read(rplidar_response_header_format.sizeof())
+                _parsed = rplidar_response_header_format.parse(_raw)
+                #print _parsed
+                
+                if (_parsed.syncByte1 != RPLIDAR_ANS_SYNC_BYTE1) or (_parsed.syncByte2 != RPLIDAR_ANS_SYNC_BYTE2):
+                    raise RPLidarError("RESULT_INVALID_ANS_HEADER")
+                else:
+                    return _parsed.type
+    
+        raise RPLidarError("RESULT_READING_TIMEOUT")
+    
+    
+    
+    
     def getDeviceInfo(self):
         "Obtain hardware information about RPLidar"
         
@@ -110,10 +129,10 @@ class RPLidar(object):
         self.serial_port.flushInput()
         
 
-        sendCommand(self.serial_port, RPLIDAR_CMD_GET_DEVICE_INFO) #get device info
+        self.sendCommand(RPLIDAR_CMD_GET_DEVICE_INFO) #get device info
         
 
-        if waitResponseHeader(self.serial_port) == RPLIDAR_ANS_TYPE_DEVINFO:
+        if self.waitResponseHeader() == RPLIDAR_ANS_TYPE_DEVINFO:
             rawInfo = self.serial_port.read(rplidar_response_device_info_format.sizeof())
             parsed = rplidar_response_device_info_format.parse(rawInfo)
         
@@ -140,9 +159,9 @@ class RPLidar(object):
         self.serial_port.flushInput()
         
 
-        sendCommand(self.serial_port, RPLIDAR_CMD_GET_DEVICE_HEALTH) #get device health
+        self.sendCommand(RPLIDAR_CMD_GET_DEVICE_HEALTH) #get device health
 
-        if waitResponseHeader(self.serial_port) == RPLIDAR_ANS_TYPE_DEVHEALTH:
+        if self.waitResponseHeader() == RPLIDAR_ANS_TYPE_DEVHEALTH:
             rawInfo = self.serial_port.read(rplidar_response_device_health_format.sizeof())
             parsed = rplidar_response_device_health_format.parse(rawInfo)
                 
@@ -164,7 +183,7 @@ class RPLidar(object):
 
 
     def startMonitor(self):
-        """ Start the monitor: com_monitor thread and the update
+        """ Start the monitor: monitor thread and the update
             timer
         """
         
@@ -173,11 +192,8 @@ class RPLidar(object):
         
         if not self._isScanning:
         
-            self.com_monitor = RPLidarMonitorThread(
-                self.data_q,
-                self.error_q,
-                self.serial_arg)
-            self.com_monitor.start()
+            self.monitor = RPLidarMonitorThread(self)
+            self.monitor.start()
             
             try: 
                 com_error = self.error_q.get(True, 0.01)
@@ -186,12 +202,12 @@ class RPLidar(object):
     
             if com_error is not None:
                 print self, 'RPLidarMonitorThread error', com_error
-                self.com_monitor = None
+                self.monitor = None
     
             self._isScanning = True
             self.set_actions_enable_state()
                     
-            print 'Monitor running:'
+            print '[rplidar]: Monitor running:'
     
     
 
@@ -200,11 +216,11 @@ class RPLidar(object):
         """
         if self._isScanning:
             self._isScanning = False;
-            self.com_monitor.join(0.01)
-            self.com_monitor = None
+            self.monitor.join(0.01)
+            self.monitor = None
 
             #self.set_actions_enable_state()
-            print 'Monitor stopped.\n'
+            print '[rplidar]: Monitor stopped.\n'
         
     
             

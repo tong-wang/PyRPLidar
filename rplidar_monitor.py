@@ -1,12 +1,33 @@
 import Queue
+from collections import deque
 import time
 import threading
 import serial
 
-from rplidar_serial  import *
+from rplidar_protocol  import *
+from rplidar_cmd import *
+from rplidar_types import *
 
 
 
+toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x])
+
+
+
+class FrameData(object):
+    def __init__(self):
+        self.cur_data = deque(maxlen=360)
+        self.has_new_data = False
+    
+    def add_data(self, data):
+        self.cur_data.append(data)
+        self.has_new_data = True
+    
+    def read_data(self):
+        self.has_new_data = False
+        return self.cur_data
+        
+        
 
 
 
@@ -41,17 +62,19 @@ class RPLidarMonitorThread(threading.Thread):
     """
     
     
-    def __init__(self, data_q, error_q, serial_arg):
+    def __init__(self, rplidar):
         threading.Thread.__init__(self)
         
-        self.serial_port = None
-        self.serial_arg = serial_arg
-        self.data_q = data_q
-        self.error_q = error_q
+        self.rplidar = rplidar
+        self.serial_port = rplidar.serial_port
+        self.serial_arg = rplidar.serial_arg
+        self.data_q = rplidar.data_q
+        self.error_q = rplidar.error_q
         
         self.alive = threading.Event()
         self.alive.set()
         
+        print "[rplidar_monitor]: initiated."
         
 
         
@@ -59,9 +82,11 @@ class RPLidarMonitorThread(threading.Thread):
         try:
             if self.serial_port: 
                 self.serial_port.close()
+                print "[rplidar_monitor]: close serial port."
             self.serial_port = serial.Serial(**self.serial_arg)
             self.serial_port.flushInput()
             self.serial_port.flushOutput()
+            print "[rplidar_monitor]: open serial port."
         except serial.SerialException, e:
             print e
             self.error_q.put(e.message)
@@ -73,9 +98,10 @@ class RPLidarMonitorThread(threading.Thread):
         if not self.serial_port:
             self.openSerialPort()
         
-        sendCommand(self.serial_port, RPLIDAR_CMD_SCAN)
+        self.rplidar.sendCommand(RPLIDAR_CMD_SCAN)
+        print "[rplidar_monitor]: start scanning."
         
-        if waitResponseHeader(self.serial_port) != RPLIDAR_ANS_TYPE_MEASUREMENT:
+        if self.rplidar.waitResponseHeader() != RPLIDAR_ANS_TYPE_MEASUREMENT:
             raise RPLidarError("RESULT_INVALID_MEASUREMENT_HEADER")
 
     
@@ -86,7 +112,6 @@ class RPLidarMonitorThread(threading.Thread):
         # Restart the clock
         time.clock()
 
-        #self.openSerialPort()
         self.startScan()
 
         
@@ -111,3 +136,4 @@ class RPLidarMonitorThread(threading.Thread):
     def join(self, timeout=None):
         self.alive.clear()
         threading.Thread.join(self, timeout)
+        print "[rplidar_monitor]: thread closed."
