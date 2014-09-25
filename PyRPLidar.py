@@ -132,11 +132,11 @@ class RPLidar(object):
             parsed = rplidar_response_device_info_format.parse(rawInfo)
         
             return {'model': parsed.model, 
-                    'firmware_major': parsed.firmware_major, 
-                    'firmware_minor': parsed.firmware_minor, 
-                    'firmware': str(parsed.firmware_major) + "." + str(parsed.firmware_minor),
-                    'hardware': parsed.hardware,
-                    'serialno': toHex(parsed.serialno).upper()
+                    'firmware_version_major': parsed.firmware_version_major, 
+                    'firmware_version_minor': parsed.firmware_version_minor, 
+                    'firmware_version': str(parsed.firmware_version_major) + "." + str(parsed.firmware_version_minor),
+                    'hardware_version': parsed.hardware_version,
+                    'serialno': toHex(parsed.serialnum).upper()
                     }
 
         else:

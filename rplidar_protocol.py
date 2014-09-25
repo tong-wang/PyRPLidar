@@ -1,4 +1,9 @@
 '''
+RPLidar Protocol & Command
+
+translated from <rplidar_protocol.h> and <rplidar_cmd.h> of RPLidar SDK v1.4.5
+by Tong Wang
+
  * Copyright (c) 2014, RoboPeak
  * All rights reserved.
  *
@@ -24,25 +29,43 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, 
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- *
+
  *
  *  RoboPeak LIDAR System
- *  Data Packet IO packet definition for RP-LIDAR
+ *  Data Packet IO protocol/packet definition for RP-LIDAR
  *
  *  Copyright 2009 - 2014 RoboPeak Team
  *  http://www.robopeak.com
  *  
 '''
 
-
 import time
 from construct import *
 
 
+
+
+# Protocol
+#-----------------------------------------
+
+RPLIDAR_CMD_SYNC_BYTE = 0xA5
+RPLIDAR_CMDFLAG_HAS_PAYLOAD = 0x80
+
+
+RPLIDAR_ANS_SYNC_BYTE1 = 0xA5
+RPLIDAR_ANS_SYNC_BYTE2 = 0x5A
+
+RPLIDAR_ANS_PKTFLAG_LOOP = 0x1
+
+
+#RPLIDAR_ANS_HEADER_SIZE_MASK = 0x3FFFFFFF
+#RPLIDAR_ANS_HEADER_SUBTYPE_SHIFT = 30
+
+
+
+
 # Commands
 #-----------------------------------------
-RPLIDAR_CMD_SYNC_BYTE = 0xa5
-RPLIDAR_CMDFLAG_HAS_PAYLOAD = 0x80
 
 # Commands without payload and response
 RPLIDAR_CMD_STOP = 0x25
@@ -58,12 +81,21 @@ RPLIDAR_CMD_GET_DEVICE_HEALTH = 0x52
 
 # Response
 # ------------------------------------------
-RPLIDAR_ANS_SYNC_BYTE1 = 0xa5
-RPLIDAR_ANS_SYNC_BYTE2 = 0x5a
 
 RPLIDAR_ANS_TYPE_MEASUREMENT = 0x81
 RPLIDAR_ANS_TYPE_DEVINFO = 0x04
 RPLIDAR_ANS_TYPE_DEVHEALTH = 0x06
+
+RPLIDAR_STATUS_OK = 0x0
+RPLIDAR_STATUS_WARNING = 0x1
+RPLIDAR_STATUS_ERROR = 0x2
+
+#define RPLIDAR_RESP_MEASUREMENT_SYNCBIT        (0x1<<0)
+#define RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT  2
+#define RPLIDAR_RESP_MEASUREMENT_CHECKBIT       (0x1<<0)
+#define RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT    1
+
+
 
 
 
@@ -71,44 +103,43 @@ RPLIDAR_ANS_TYPE_DEVHEALTH = 0x06
 # ------------------------------------------
 #serial data structure for CMD header (2 bytes)
 rplidar_command_format = Struct('cmd_format',
-    ULInt8('syncByte'), # A5
-    ULInt8('cmd'), # 1 byte for CMD
+    ULInt8('syncByte'), # //must be RPLIDAR_CMD_SYNC_BYTE: A5
+    ULInt8('cmd_flag') # 1 byte for CMD
 )
 
 
 #serial data structure for response header (7 bytes)
 rplidar_response_header_format = Struct('header_format',
-    ULInt8('syncByte1'),#, 1), # A5
-    ULInt8('syncByte2'),#, 1), # 5A
-    ULInt32('black'),#, 4), # 4 bytes for unknown purpose
+    ULInt8('syncByte1'),#, 1), # must be RPLIDAR_ANS_SYNC_BYTE1: A5
+    ULInt8('syncByte2'),#, 1), # must be RPLIDAR_ANS_SYNC_BYTE2: 5A
+    ULInt32('size_q30_subtype'),#, 4), # see _u32 size:30; _u32 subType:2;
     ULInt8('type')#, 1), # 1 bytes for message type
 )
 
 #serial data structure returned by GET_INFO (20 bytes)
 rplidar_response_device_info_format = Struct('info_format',
     ULInt8('model'),
-    ULInt8('firmware_minor'),
-    ULInt8('firmware_major'),
-    ULInt8('hardware'),
-    String('serialno', 16)
+    ULInt8('firmware_version_minor'),
+    ULInt8('firmware_version_major'),
+    ULInt8('hardware_version'),
+    String('serialnum', 16)
 )
-
 
 #serial data structure returned by GET_HEALTH (3 bytes)
 rplidar_response_device_health_format = Struct('health_format',
-    Enum(Byte('status'), RPLIDAR_STATUS_OK = 0, RPLIDAR_STATUS_WARNING = 1, RPLIDAR_STATUS_ERROR = 2, RPLIDAR_STATUS_ERROR_UNKNOWN = 3),
+    Enum(Byte('status'), RPLIDAR_STATUS_OK = RPLIDAR_STATUS_OK, RPLIDAR_STATUS_WARNING = RPLIDAR_STATUS_WARNING, RPLIDAR_STATUS_ERROR = RPLIDAR_STATUS_ERROR),
     ULInt16('error_code')
 )
 
 
 #serial data structure returned by SCAN -- a single point (5 bytes)
 rplidar_response_device_point_format = Struct("point_format",
-    BitStruct("Byte0", BitField("quality", 6), Flag("S_bar"), Flag("S")),
-    BitStruct("Byte1", BitField("angleL", 7), Flag("C")), # =1
-    ULInt8("angleH"),
+    BitStruct("Byte0", BitField("sync_quality", 6), Flag("syncbit_inverse"), Flag("syncbit")),
+    BitStruct("Byte1", BitField("angle_lowbyte", 7), Flag("check_bit")), # =1
+    ULInt8("angle_highbyte"),
     ULInt16("distance_q2"),
     Value("distance", lambda ctx: ctx["distance_q2"]/4.0),
-    Value("angle", lambda ctx: ((ctx["angleH"] << 7) | ctx["Byte1"].angleL)/64.0)
+    Value("angle", lambda ctx: ((ctx["angle_highbyte"] << 7) | ctx["Byte1"].angle_lowbyte)/64.0)
 )
     
 
@@ -116,7 +147,7 @@ rplidar_response_device_point_format = Struct("point_format",
 
 def sendCommand(serial_port, command):
     
-    cmdBytes = rplidar_command_format.build(Container(syncByte = RPLIDAR_CMD_SYNC_BYTE, cmd = command))
+    cmdBytes = rplidar_command_format.build(Container(syncByte = RPLIDAR_CMD_SYNC_BYTE, cmd_flag = command))
     serial_port.write(cmdBytes)
 
 
@@ -160,16 +191,14 @@ class RPLidarError(Exception):
 
 
 
-RESULT_OK = 0
-RESULT_FAIL_BIT = 0x80000000
-RESULT_ALREADY_DONE = 0x20
-RESULT_INVALID_DATA = (0x8000 | RESULT_FAIL_BIT)
-RESULT_OPERATION_FAIL = (0x8001 | RESULT_FAIL_BIT)
-RESULT_OPERATION_TIMEOUT = (0x8002 | RESULT_FAIL_BIT)
-RESULT_OPERATION_STOP = (0x8003 | RESULT_FAIL_BIT)
-RESULT_OPERATION_NOT_SUPPORT = (0x8004 | RESULT_FAIL_BIT)
-RESULT_FORMAT_NOT_SUPPORT = (0x8005 | RESULT_FAIL_BIT)
-RESULT_INSUFFICIENT_MEMORY = (0x8006 | RESULT_FAIL_BIT)
+#RESULT_OK = 0
+#RESULT_FAIL_BIT = 0x80000000
+#RESULT_ALREADY_DONE = 0x20
+#RESULT_INVALID_DATA = (0x8000 | RESULT_FAIL_BIT)
+#RESULT_OPERATION_FAIL = (0x8001 | RESULT_FAIL_BIT)
+#RESULT_OPERATION_TIMEOUT = (0x8002 | RESULT_FAIL_BIT)
+#RESULT_OPERATION_STOP = (0x8003 | RESULT_FAIL_BIT)
+#RESULT_OPERATION_NOT_SUPPORT = (0x8004 | RESULT_FAIL_BIT)
+#RESULT_FORMAT_NOT_SUPPORT = (0x8005 | RESULT_FAIL_BIT)
+#RESULT_INSUFFICIENT_MEMORY = (0x8006 | RESULT_FAIL_BIT)
 
-IS_OK = lambda x: ( ((x) & RESULT_FAIL_BIT) == 0 )
-IS_FAIL = lambda x: ( ((x) & RESULT_FAIL_BIT) )

@@ -100,9 +100,7 @@ class ComMonitorThread(threading.Thread):
 
             rawPoint = self.serial_port.read(5)
             parsed = rplidar_response_device_point_format.parse(rawPoint)
-            ###!!!angle is taken as INTEGER here!!!###
-            #point = dict(start=parsed.Byte0.S, angle=round(parsed.angle), distance=parsed.distance, check=parsed.Byte1.C, quality=parsed.Byte0.quality)
-            point = dict(start=parsed.Byte0.S, angle=parsed.angle, distance=parsed.distance, check=parsed.Byte1.C, quality=parsed.Byte0.quality)
+            point = dict(start=parsed.Byte0.syncbit, angle=parsed.angle, distance=parsed.distance, check=parsed.Byte1.check_bit, quality=parsed.Byte0.sync_quality)
             
             timestamp = time.clock()
             self.data_q.put((point, timestamp))
