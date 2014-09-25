@@ -9,13 +9,12 @@ from collections import deque
 import numpy as np
 import matplotlib.pyplot as plt
 
-from rplidar_protocol import *
-from com_monitor import ComMonitorThread
+from rplidar_serial  import *
+from rplidar_monitor import *
 
 
 
 
-toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 
 
@@ -174,7 +173,7 @@ class RPLidar(object):
         
         if not self._isScanning:
         
-            self.com_monitor = ComMonitorThread(
+            self.com_monitor = RPLidarMonitorThread(
                 self.data_q,
                 self.error_q,
                 self.serial_arg)
@@ -186,7 +185,7 @@ class RPLidar(object):
                 com_error = None
     
             if com_error is not None:
-                print self, 'ComMonitorThread error', com_error
+                print self, 'RPLidarMonitorThread error', com_error
                 self.com_monitor = None
     
             self._isScanning = True

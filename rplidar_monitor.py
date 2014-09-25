@@ -2,18 +2,15 @@ import Queue
 import time
 import threading
 import serial
-from construct import *
 
-from rplidar_protocol import *
-
-
-toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x])
+from rplidar_serial  import *
 
 
 
 
 
-class ComMonitorThread(threading.Thread):
+
+class RPLidarMonitorThread(threading.Thread):
     """ A thread for monitoring a COM port. The COM port is 
         opened when the thread is started.
     

@@ -1,7 +1,7 @@
 '''
-RPLidar Protocol
+RPLidar Types Definition
 
-translated from <rplidar_protocol.h> of RPLidar SDK v1.4.5
+translated from <rptypes.h> of RPLidar SDK v1.4.5
 by Tong Wang
 
  * Copyright (c) 2014, RoboPeak
@@ -32,52 +32,38 @@ by Tong Wang
 
  *
  *  RoboPeak LIDAR System
- *  Data Packet IO protocol definition for RP-LIDAR
+ *  Common Types definition
  *
  *  Copyright 2009 - 2014 RoboPeak Team
  *  http://www.robopeak.com
  *  
 '''
 
-from construct import *
+
+
+class RPLidarError(Exception):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return "[RPLidar ERROR] %s\n" % str(self.message)
+
+    def log(self):
+        ret = "%s" % str(self.message)
+        if(hasattr(self, "reason")):
+            return "".join([ret, "\n==> %s" % str(self.reason)])
+        return ret
 
 
 
+#RESULT_OK = 0
+#RESULT_FAIL_BIT = 0x80000000
+#RESULT_ALREADY_DONE = 0x20
+#RESULT_INVALID_DATA = (0x8000 | RESULT_FAIL_BIT)
+#RESULT_OPERATION_FAIL = (0x8001 | RESULT_FAIL_BIT)
+#RESULT_OPERATION_TIMEOUT = (0x8002 | RESULT_FAIL_BIT)
+#RESULT_OPERATION_STOP = (0x8003 | RESULT_FAIL_BIT)
+#RESULT_OPERATION_NOT_SUPPORT = (0x8004 | RESULT_FAIL_BIT)
+#RESULT_FORMAT_NOT_SUPPORT = (0x8005 | RESULT_FAIL_BIT)
+#RESULT_INSUFFICIENT_MEMORY = (0x8006 | RESULT_FAIL_BIT)
 
-# Protocol
-#-----------------------------------------
-
-RPLIDAR_CMD_SYNC_BYTE = 0xA5
-RPLIDAR_CMDFLAG_HAS_PAYLOAD = 0x80
-
-
-RPLIDAR_ANS_SYNC_BYTE1 = 0xA5
-RPLIDAR_ANS_SYNC_BYTE2 = 0x5A
-
-#RPLIDAR_ANS_PKTFLAG_LOOP = 0x1
-
-
-#RPLIDAR_ANS_HEADER_SIZE_MASK = 0x3FFFFFFF
-#RPLIDAR_ANS_HEADER_SUBTYPE_SHIFT = 30
-
-
-
-
-
-
-# Struct
-# ------------------------------------------
-#serial data structure for CMD header (2 bytes)
-rplidar_command_format = Struct('cmd_format',
-    ULInt8('syncByte'), # must be RPLIDAR_CMD_SYNC_BYTE: A5
-    ULInt8('cmd_flag') # one byte for CMD
-)
-
-
-#serial data structure for response header (7 bytes)
-rplidar_response_header_format = Struct('header_format',
-    ULInt8('syncByte1'),#, 1), # must be RPLIDAR_ANS_SYNC_BYTE1: A5
-    ULInt8('syncByte2'),#, 1), # must be RPLIDAR_ANS_SYNC_BYTE2: 5A
-    ULInt32('size_q30_subtype'),#, 4), # see _u32 size:30; _u32 subType:2;
-    ULInt8('type')#, 1), # one byte for message type
-)
