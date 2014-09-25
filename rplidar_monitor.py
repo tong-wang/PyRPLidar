@@ -142,7 +142,7 @@ class RPLidarMonitor(threading.Thread):
         time.clock()
 
         self.startScan()
-
+           
         
         while self.alive.isSet():
             

@@ -240,7 +240,7 @@ class RPLidar(object):
                 continue
             
             self.frameData.add_data(qdata)
-            
+                
             i = i+1
     
     
@@ -338,13 +338,13 @@ if __name__ == "__main__":
 
 
     rplidar.startMonitor()
-    #rplidar.initPolarPlot()
-    rplidar.initXYPlot()
+    rplidar.initPolarPlot()
+    #rplidar.initXYPlot()
     
     for i in range(100):
         rplidar.readFrameFromQueue()
-        #rplidar.updatePolarPlot()
-        rplidar.updateXYPlot()
+        rplidar.updatePolarPlot()
+        #rplidar.updateXYPlot()
   
         
     rplidar.stopMonitor()
