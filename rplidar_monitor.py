@@ -24,11 +24,11 @@ toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 class RPLidarFrame(object):
     def __init__(self):
-        self.cur_data = np.zeros((360, 3))
+        self.cur_data = np.zeros((360, 5))
         self.has_new_data = False
     
     def add_data(self, data):
-        self.cur_data[np.floor(data.angleD)] = [data.angle, data.distance, data.angleD]
+        self.cur_data[np.floor(data.angleD)] = [data.angle, data.distance, data.angleD, data.X, data.Y]
         self.has_new_data = True
     
     def read_data(self):
@@ -53,6 +53,10 @@ class RPLidarPoint(object):
         self.angle = np.radians(self.angleD)
         
         self.distance = _parsed.distance_q2 / 4.0
+        
+        self.X = self.distance * np.sin(self.angle)
+        self.Y = self.distance * np.cos(self.angle)
+        
         
 
     

@@ -266,8 +266,8 @@ class RPLidar(object):
         if self.frameData.has_new_data:
             _framedata = self.frameData.read_data()
         
-            self.lines.set_xdata(_framedata[:, 1] * np.sin(_framedata[:, 0]))
-            self.lines.set_ydata(_framedata[:, 1] * np.cos(_framedata[:, 0]))
+            self.lines.set_xdata(_framedata[:, 3])
+            self.lines.set_ydata(_framedata[:, 4])
             self.figure.canvas.draw()
             
     
@@ -330,14 +330,14 @@ if __name__ == "__main__":
 
     rplidar.startMonitor()
     
-    rplidar.initPolarPlot()
-    #rplidar.initXYPlot()
+    #rplidar.initPolarPlot()
+    rplidar.initXYPlot()
     
     for i in range(100):
         rplidar.readFrameFromQueue()
         
-        rplidar.updatePolarPlot()
-        #rplidar.updateXYPlot()
+        #rplidar.updatePolarPlot()
+        rplidar.updateXYPlot()
   
         
     rplidar.stopMonitor()
