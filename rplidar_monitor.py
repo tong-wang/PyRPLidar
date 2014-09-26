@@ -7,8 +7,7 @@ Define classes for com port monitor that initiates a thread continuously reading
 '''
 
 import Queue
-from collections import deque
-import math
+import numpy as np
 import time
 import threading
 import serial
@@ -25,11 +24,11 @@ toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 class RPLidarFrame(object):
     def __init__(self):
-        self.cur_data = deque(maxlen=360)
+        self.cur_data = np.zeros((360, 3))
         self.has_new_data = False
     
     def add_data(self, data):
-        self.cur_data.append(data)
+        self.cur_data[np.floor(data.angleD)] = [data.angle, data.distance, data.angleD]
         self.has_new_data = True
     
     def read_data(self):
@@ -51,7 +50,7 @@ class RPLidarPoint(object):
         
         self.check_bit = _parsed.Byte1.check_bit
         self.angleD = ((_parsed.angle_highbyte << 7) | _parsed.Byte1.angle_lowbyte) / 64.0
-        self.angle = math.radians(self.angleD)
+        self.angle = np.radians(self.angleD)
         
         self.distance = _parsed.distance_q2 / 4.0
         

@@ -7,7 +7,6 @@ RPLidar Python Driver
 """
 
 import serial
-import math
 import Queue
 import numpy as np
 import matplotlib.pyplot as plt
@@ -267,16 +266,8 @@ class RPLidar(object):
         if self.frameData.has_new_data:
             _framedata = self.frameData.read_data()
         
-            _x = []
-            _y = []
-            
-            for _point in list(_framedata):
-                _x.append(_point.distance * math.sin(_point.angle))
-                _y.append(_point.distance * math.cos(_point.angle))
-    
-
-            self.lines.set_xdata(_x)
-            self.lines.set_ydata(_y)
+            self.lines.set_xdata(_framedata[:, 1] * np.sin(_framedata[:, 0]))
+            self.lines.set_ydata(_framedata[:, 1] * np.cos(_framedata[:, 0]))
             self.figure.canvas.draw()
             
     
@@ -292,7 +283,7 @@ class RPLidar(object):
         self.lines, = self.ax.plot([],[], linestyle='none', marker='.', markersize=3, markerfacecolor='blue')
         self.ax.set_rmax(5000)
         self.ax.set_theta_direction(-1) #clockwise
-        self.ax.set_theta_offset(math.pi/2) #offset by 90 degree so that 0 degree is at 12 o'clock
+        self.ax.set_theta_offset(np.pi/2) #offset by 90 degree so that 0 degree is at 12 o'clock
         #self.ax.grid()
     
 
@@ -305,8 +296,8 @@ class RPLidar(object):
         if self.frameData.has_new_data:
             _framedata = self.frameData.read_data()
         
-            self.lines.set_xdata([_point.angle for _point in list(_framedata)])
-            self.lines.set_ydata([_point.distance for _point in list(_framedata) ] )
+            self.lines.set_xdata(_framedata[:, 0])
+            self.lines.set_ydata(_framedata[:, 1] )
             self.figure.canvas.draw()
             
     
@@ -338,11 +329,13 @@ if __name__ == "__main__":
 
 
     rplidar.startMonitor()
+    
     rplidar.initPolarPlot()
     #rplidar.initXYPlot()
     
     for i in range(100):
         rplidar.readFrameFromQueue()
+        
         rplidar.updatePolarPlot()
         #rplidar.updateXYPlot()
   
