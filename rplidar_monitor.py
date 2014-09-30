@@ -96,7 +96,7 @@ class RPLidarMonitor(threading.Thread):
         logging.debug('Initializing rplidar_monitor thread.')
 
         threading.Thread.__init__(self)
-        
+        self.name = "rplidar_monitor"
         self.rplidar = rplidar
         self.serial_port = rplidar.serial_port
         self.serial_arg = rplidar.serial_arg
@@ -109,27 +109,10 @@ class RPLidarMonitor(threading.Thread):
         
 
         
-    def openSerialPort(self):        
-        try:
-            if self.serial_port: 
-                self.serial_port.close()
-                logging.debug("Close serial port.")
-            self.serial_port = serial.Serial(**self.serial_arg)
-            self.serial_port.flushInput()
-            self.serial_port.flushOutput()
-            logging.debug("Open serial port.")
-        except serial.SerialException, e:
-            logging.error(e.message)
-            return
-
-
     def startScan(self):
         
-        if not self.serial_port:
-            self.openSerialPort()
-        
         self.rplidar.sendCommand(RPLIDAR_CMD_SCAN)
-        logging.debug("start scanning.")
+        logging.debug("Start scanning.")
         
         if self.rplidar.waitResponseHeader() != RPLIDAR_ANS_TYPE_MEASUREMENT:
             raise RPLidarError("RESULT_INVALID_MEASUREMENT_HEADER")
