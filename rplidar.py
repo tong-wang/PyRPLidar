@@ -8,6 +8,7 @@ RPLidar Python Driver
 
 import serial
 import Queue
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -15,6 +16,8 @@ from rplidar_monitor import *
 
 
 
+logging.basicConfig(level=logging.DEBUG,
+                    format='[%(levelname)s] (%(threadName)-10s) %(message)s')
 
 
 
@@ -45,7 +48,6 @@ class RPLidar(object):
         self.monitor = None
         self._isScanning = False
         self.data_q = Queue.Queue()
-        self.error_q = Queue.Queue()
         
         self.frameData = RPLidarFrame()
         
@@ -59,7 +61,7 @@ class RPLidar(object):
                 #self.serial_port.flushOutput()
                 self._isConnected = True
             except serial.SerialException, e:
-                self.error_q.put(e.message)
+                logging.error(e.message)
                 
 
     def disconnect(self):
@@ -69,7 +71,7 @@ class RPLidar(object):
                 self.serial_port.close()
                 self._isConnected = False
             except serial.SerialException, e:
-                self.error_q.put(e.message)
+                logging.error(e.message)
             
 
 
@@ -198,19 +200,10 @@ class RPLidar(object):
             self.monitor = RPLidarMonitor(self)
             self.monitor.start()
             
-            try: 
-                com_error = self.error_q.get(True, 0.01)
-            except Queue.Empty: 
-                com_error = None
-    
-            if com_error is not None:
-                print self, 'RPLidarMonitorThread error', com_error
-                self.monitor = None
-    
             self._isScanning = True
             self.set_actions_enable_state()
                     
-            print '[rplidar]: Monitor running:'
+            logging.debug("Monitor running.")
     
     
 
@@ -223,7 +216,7 @@ class RPLidar(object):
             self.monitor = None
 
             #self.set_actions_enable_state()
-            print '[rplidar]: Monitor stopped.\n'
+            logging.debug("Monitor stopped.")
         
     
             
