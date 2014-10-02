@@ -6,303 +6,230 @@ RPLidar Python Driver
 
 """
 
+
 import serial
+import logging
 import Queue
+from collections import deque
 import numpy as np
 import matplotlib.pyplot as plt
 
 from rplidar_monitor import *
 
 
-
-
-
-
-
-
-
-
 class RPLidar(object):
-
     
-    def __init__(self, portname, baudrate=115200, timeout=0.01):
-        
-        #private flags
-        self._isConnected = False
+    def __init__(self, portname, baudrate=115200, timeout=1):
         
         #init serial port
         self.serial_port = None
         self.portname = portname
         self.baudrate = baudrate
         self.timeout = timeout
-        self.serial_arg = dict( port=portname,
-                                baudrate=baudrate,
-                                stopbits=serial.STOPBITS_ONE,
-                                parity=serial.PARITY_NONE,
-                                timeout=timeout)
+        self.serial_arg = dict(port=portname,
+                               baudrate=baudrate,
+                               stopbits=serial.STOPBITS_ONE,
+                               parity=serial.PARITY_NONE,
+                               timeout=timeout)
+        self.isConnected = False
         
-        #init monitor
+        # init monitor
         self.monitor = None
-        self._isScanning = False
-        self.data_q = Queue.Queue()
-        self.error_q = Queue.Queue()
+        self.isScanning = False
         
-        self.frameData = RPLidarFrame()
+        # init processor
+        self.processor = None
+        self.isProcessing = False
         
-        
+        # data containers
+        self.raw_points = Queue.Queue()
+        self.raw_frames = list()
+        self.current_frame = RPLidarFrame()
+
         
     def connect(self):
-        if not self._isConnected:
+
+        if not self.isConnected:
             try:
                 self.serial_port = serial.Serial(**self.serial_arg)
-                #self.serial_port.flushInput()
-                #self.serial_port.flushOutput()
-                self._isConnected = True
-            except serial.SerialException, e:
-                self.error_q.put(e.message)
-                
+                self.isConnected = True
+                logging.debug("Connected to RPLidar on port %s", self.portname)
+            except serial.SerialException as e:
+                logging.error(e.message)
+               
 
     def disconnect(self):
-        if self._isConnected:
+
+        if self.isConnected:
             try:
-                self.stop() #!!!!!!!!!!!!!!!!!!!!!!!!
+                if self.monitor:
+                    self.stop_monitor()
                 self.serial_port.close()
-                self._isConnected = False
-            except serial.SerialException, e:
-                self.error_q.put(e.message)
-            
+                self.isConnected = False
+                logging.debug("Disconnected from RPLidar on port %s", self.portname)
+            except serial.SerialException as e:
+                logging.error(e.message)
 
 
-    def stop(self):
-        
-        #stop scanning
-        self.sendCommand(RPLIDAR_CMD_STOP)
-
-        time.sleep(0.1) #it seems to be very important to have a pause here until the STOP command is executed by RPLidar
-        
-        #stop monitor thread
-        self.stopMonitor()
-
-    
     def reset(self):
-        self.sendCommand(RPLIDAR_CMD_RESET) #reset
 
+        self.send_command(RPLIDAR_CMD_RESET)
+        logging.debug("Command RESET sent.")
         
 
-    def sendCommand(self, command):
+    def send_command(self, command):
         
-        cmdBytes = rplidar_command_format.build(Container(syncByte = RPLIDAR_CMD_SYNC_BYTE, cmd_flag = command))
-        self.serial_port.write(cmdBytes)
+        cmd_bytes = rplidar_command_format.build(Container(
+                             sync_byte=RPLIDAR_CMD_SYNC_BYTE, cmd_flag=command))
+        self.serial_port.write(cmd_bytes)
+        logging.debug("Command %s sent.", toHex(cmd_bytes))
     
     
-    
-    
-    def waitResponseHeader(self, timeout=1):
+    def response_header(self, timeout=1):
         
-        _startTime = time.time()
+        start_time = time.time()
         
-        while time.time() < _startTime + timeout:
+        while time.time() < start_time + timeout:
             if self.serial_port.inWaiting() < rplidar_response_header_format.sizeof():
-                #print serial_port.inWaiting()
+                #logging.debug(serial_port.inWaiting())
                 time.sleep(0.01)
             else:
-                _raw = self.serial_port.read(rplidar_response_header_format.sizeof())
-                _parsed = rplidar_response_header_format.parse(_raw)
-                #print _parsed
+                raw = self.serial_port.read(rplidar_response_header_format.sizeof())
+                parsed = rplidar_response_header_format.parse(raw)
+                #logging.debug(parsed)
                 
-                if (_parsed.syncByte1 != RPLIDAR_ANS_SYNC_BYTE1) or (_parsed.syncByte2 != RPLIDAR_ANS_SYNC_BYTE2):
+                if ((parsed.sync_byte1 != RPLIDAR_ANS_SYNC_BYTE1) or 
+                    (parsed.sync_byte2 != RPLIDAR_ANS_SYNC_BYTE2)):
                     raise RPLidarError("RESULT_INVALID_ANS_HEADER")
                 else:
-                    return _parsed.type
+                    return parsed.type
     
         raise RPLidarError("RESULT_READING_TIMEOUT")
     
     
-    
-    
-    def getDeviceInfo(self):
+    def get_device_info(self):
         "Obtain hardware information about RPLidar"
         
-        
-        #disconnect then re-connect serial port in order to clear buffer
-        #self.disconnect()
-        #self.connect()
-        
-        self.stop()
         self.serial_port.flushInput()
         
+        self.send_command(RPLIDAR_CMD_GET_DEVICE_INFO)
 
-        self.sendCommand(RPLIDAR_CMD_GET_DEVICE_INFO) #get device info
+        if self.response_header() == RPLIDAR_ANS_TYPE_DEVINFO:
+            raw = self.serial_port.read(rplidar_response_device_info_format.sizeof())
+            parsed = rplidar_response_device_info_format.parse(raw)
         
-
-        if self.waitResponseHeader() == RPLIDAR_ANS_TYPE_DEVINFO:
-            rawInfo = self.serial_port.read(rplidar_response_device_info_format.sizeof())
-            parsed = rplidar_response_device_info_format.parse(rawInfo)
-        
-            return {'model': parsed.model, 
-                    'firmware_version_major': parsed.firmware_version_major, 
-                    'firmware_version_minor': parsed.firmware_version_minor, 
-                    'firmware_version': str(parsed.firmware_version_major) + "." + str(parsed.firmware_version_minor),
-                    'hardware_version': parsed.hardware_version,
-                    'serialno': toHex(parsed.serialnum).upper()
-                    }
+            return {"model": parsed.model, 
+                    "firmware_version_major": parsed.firmware_version_major, 
+                    "firmware_version_minor": parsed.firmware_version_minor, 
+                    "hardware_version": parsed.hardware_version,
+                    "serial_number": toHex(parsed.serial_number)}
 
         else:
             raise RPLidarError("RESULT_INVALID_ANS_TYPE")
 
 
-    def getHealth(self):
+    def get_health(self):
         "Obtain health information about RPLidar"
 
-        #disconnect then re-connect serial port in order to clear buffer
-        #self.disconnect()
-        #self.connect()
-        
-        self.stop()
         self.serial_port.flushInput()
         
+        self.send_command(RPLIDAR_CMD_GET_DEVICE_HEALTH)
 
-        self.sendCommand(RPLIDAR_CMD_GET_DEVICE_HEALTH) #get device health
-
-        if self.waitResponseHeader() == RPLIDAR_ANS_TYPE_DEVHEALTH:
-            rawInfo = self.serial_port.read(rplidar_response_device_health_format.sizeof())
-            parsed = rplidar_response_device_health_format.parse(rawInfo)
+        if self.response_header() == RPLIDAR_ANS_TYPE_DEVHEALTH:
+            raw = self.serial_port.read(rplidar_response_device_health_format.sizeof())
+            parsed = rplidar_response_device_health_format.parse(raw)
                 
-            return {'status': parsed.status, 
-                    'error_code': parsed.error_code}
+            return {"status": parsed.status, 
+                    "error_code": parsed.error_code}
         else:
             raise RPLidarError("RESULT_INVALID_ANS_TYPE")
-           
-                                          
-    
-    
-    def set_actions_enable_state(self):
-        if self.portname == '':
-            start_enable = stop_enable = False
-        else:
-            start_enable = not self._isScanning
-            stop_enable = self._isScanning
-        
 
 
-    def startMonitor(self):
-        """ Start the monitor: monitor thread and the update
-            timer
+    def start_monitor(self):
+        """ Start the monitor: monitor thread
         """
         
-        if self.portname == '':
-            raise RPLidarError("EMPTY SERIAL PORT NAME")
+        if not self.isScanning:
         
-        if not self._isScanning:
-        
+            logging.debug("Try to start monitor thread.")
             self.monitor = RPLidarMonitor(self)
             self.monitor.start()
-            
-            try: 
-                com_error = self.error_q.get(True, 0.01)
-            except Queue.Empty: 
-                com_error = None
-    
-            if com_error is not None:
-                print self, 'RPLidarMonitorThread error', com_error
-                self.monitor = None
-    
-            self._isScanning = True
-            self.set_actions_enable_state()
-                    
-            print '[rplidar]: Monitor running:'
-    
+
+#            self.processor = RPLidarProcessor(self)
+#            self.processor.start()
+#            self.isProcessing = True
+#            logging.debug("Processor running.")
     
 
-    def stopMonitor(self):
-        """ Stop the monitor
-        """
-        if self._isScanning:
-            self._isScanning = False;
-            self.monitor.join(0.01)
+    def stop_monitor(self):
+        """ Stop the monitor """
+
+        if self.monitor:
+            logging.debug("Try to stop monitor thread.")
+            self.monitor.join()
             self.monitor = None
+            
+#        if self.isProcessing:
+#            self.isProcessing = False;
+#            self.processor.join()
+#            self.processor = None
 
-            #self.set_actions_enable_state()
-            print '[rplidar]: Monitor stopped.\n'
-        
+#            logging.debug("Processor stopped.")
     
             
-    def readFrameFromQueue(self):
-        """ 
-        read a whole frame from the data queue
-        """
-        i = 0
-        while i < 360:
-            try: 
-                qdata = self.data_q.get(True, 0.01)
-            except Queue.Empty: 
-                continue
-            
-            self.frameData.add_data(qdata)
-                
-            i = i+1
-    
-    
-    def initXYPlot(self):
-        """
-        setup an XY plot canvas
-        """
+    def init_xy_plot(self):
+        """ setup an XY plot canvas """
         
         plt.ion()
-        self.figure = plt.figure(figsize=(6, 6), dpi=160, facecolor='w', edgecolor='k')
+        self.figure = plt.figure(figsize=(6, 6),
+                                 dpi=160,
+                                 facecolor="w",
+                                 edgecolor="k")
         self.ax = self.figure.add_subplot(111)
-        self.lines, = self.ax.plot([],[], linestyle='none', marker='.', markersize=3, markerfacecolor='blue')
+        self.lines, = self.ax.plot([],[],
+                                   linestyle="none",
+                                   marker=".",
+                                   markersize=3,
+                                   markerfacecolor="blue")
         self.ax.set_xlim(-5000, 5000)
         self.ax.set_ylim(-5000, 5000)
         self.ax.grid()
     
     
-    
-    def updateXYPlot(self):
-        """
-        re-draw the XY plot with new frameData
-        """
+    def update_xy_plot(self):
+        """ re-draw the XY plot with new curFrame """
 
-        if self.frameData.has_new_data:
-            _framedata = self.frameData.read_data()
-        
-            self.lines.set_xdata(_framedata[:, 3])
-            self.lines.set_ydata(_framedata[:, 4])
-            self.figure.canvas.draw()
-            
+        self.lines.set_xdata(self.current_frame.x)
+        self.lines.set_ydata(self.current_frame.y)
+        self.figure.canvas.draw()
     
     
-    def initPolarPlot(self):
-        """
-        setup a polar plot canvas
-        """
+    def init_polar_plot(self):
+        """ setup a polar plot canvas """
 
         plt.ion()
-        self.figure = plt.figure(figsize=(6, 6), dpi=160, facecolor='w', edgecolor='k')
+        self.figure = plt.figure(figsize=(6, 6), 
+                                 dpi=160, 
+                                 facecolor="w", 
+                                 edgecolor="k")
         self.ax = self.figure.add_subplot(111, polar=True)
-        self.lines, = self.ax.plot([],[], linestyle='none', marker='.', markersize=3, markerfacecolor='blue')
+        self.lines, = self.ax.plot([],[], 
+                                   linestyle="none", 
+                                   marker=".", 
+                                   markersize=3, 
+                                   markerfacecolor="blue")
         self.ax.set_rmax(5000)
-        self.ax.set_theta_direction(-1) #clockwise
+        self.ax.set_theta_direction(-1) #set to clockwise
         self.ax.set_theta_offset(np.pi/2) #offset by 90 degree so that 0 degree is at 12 o'clock
         #self.ax.grid()
-    
 
 
-    def updatePolarPlot(self):
-        """
-        re-draw the polar plot with new frameData
-        """
-        
-        if self.frameData.has_new_data:
-            _framedata = self.frameData.read_data()
-        
-            self.lines.set_xdata(_framedata[:, 0])
-            self.lines.set_ydata(_framedata[:, 1] )
-            self.figure.canvas.draw()
-            
-    
+    def update_polar_plot(self):
+        """ re-draw the polar plot with new curFrame """
 
-
+        self.lines.set_xdata(self.current_frame.angle_r)
+        self.lines.set_ydata(self.current_frame.distance)
+        self.figure.canvas.draw()
        
         
         
@@ -312,43 +239,29 @@ class RPLidar(object):
 
 if __name__ == "__main__":
     
+    # logging config
+    logging.basicConfig(level=logging.DEBUG,
+                    format="[%(levelname)s] (%(threadName)-10s) %(message)s")
+
     rplidar = RPLidar("/dev/tty.SLAB_USBtoUART")
-    
     rplidar.connect()
    
-    try:
-        print rplidar.getDeviceInfo()
-    except RPLidarError, e:
-        print e
+    print rplidar.get_device_info()
+    print rplidar.get_health()
 
 
-    try:
-        print rplidar.getHealth()
-    except RPLidarError, e:
-        print e
-
-
-    rplidar.startMonitor()
+    rplidar.start_monitor()
     
-    #rplidar.initPolarPlot()
-    rplidar.initXYPlot()
+    #rplidar.init_polar_plot()
+    rplidar.init_xy_plot()
     
     for i in range(100):
-        rplidar.readFrameFromQueue()
-        
-        #rplidar.updatePolarPlot()
-        rplidar.updateXYPlot()
-  
-        
-    rplidar.stopMonitor()
-    
+    #while True:
+        #rplidar.update_polar_plot()
+        rplidar.update_xy_plot()
+        time.sleep(0.15)
+
+
+    rplidar.stop_monitor()
     rplidar.disconnect()
-
-
-    
-    
-        
-            
-                    
     rplidar = None
-  
