@@ -1,7 +1,7 @@
-'''
+"""
 RPLidar Commands
 
-translated from <rplidar_cmd.h> of RPLidar SDK v1.4.5
+partly translated from <rplidar_cmd.h> of RPLidar SDK v1.4.5
 by Tong Wang
 
  * Copyright (c) 2014, RoboPeak
@@ -37,22 +37,20 @@ by Tong Wang
  *  Copyright 2009 - 2014 RoboPeak Team
  *  http://www.robopeak.com
  *  
-'''
+"""
+
 
 from construct import *
-#from rplidar_protocol import *
-
 
 
 # Commands
-#-----------------------------------------
+# -----------------------------------------
 
 # Commands without payload and response
 RPLIDAR_CMD_STOP = 0x25
 RPLIDAR_CMD_SCAN = 0x20
 RPLIDAR_CMD_FORCE_SCAN = 0x21
 RPLIDAR_CMD_RESET = 0x40
-
 
 # Commands without payload but have response
 RPLIDAR_CMD_GET_DEVICE_INFO = 0x50
@@ -71,42 +69,41 @@ RPLIDAR_STATUS_OK = 0x0
 RPLIDAR_STATUS_WARNING = 0x1
 RPLIDAR_STATUS_ERROR = 0x2
 
-#define RPLIDAR_RESP_MEASUREMENT_SYNCBIT        (0x1<<0)
-#define RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT  2
-#define RPLIDAR_RESP_MEASUREMENT_CHECKBIT       (0x1<<0)
-#define RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT    1
-
-
-
+RPLIDAR_RESP_MEASUREMENT_SYNCBIT = (0x1<<0)
+RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT = 2
+RPLIDAR_RESP_MEASUREMENT_CHECKBIT = (0x1<<0)
+RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT = 1
 
 
 # Struct
 # ------------------------------------------
 
-#serial data structure returned by GET_INFO (20 bytes)
-rplidar_response_device_info_format = Struct('info_format',
-    ULInt8('model'),
-    ULInt8('firmware_version_minor'),
-    ULInt8('firmware_version_major'),
-    ULInt8('hardware_version'),
-    String('serialnum', 16)
+# serial data structure returned by GET_INFO (20 bytes)
+rplidar_response_device_info_format = Struct("info_format",
+    ULInt8("model"),
+    ULInt8("firmware_version_minor"),
+    ULInt8("firmware_version_major"),
+    ULInt8("hardware_version"),
+    String("serial_number", 16)
 )
 
-#serial data structure returned by GET_HEALTH (3 bytes)
-rplidar_response_device_health_format = Struct('health_format',
-    Enum(Byte('status'), RPLIDAR_STATUS_OK = RPLIDAR_STATUS_OK, RPLIDAR_STATUS_WARNING = RPLIDAR_STATUS_WARNING, RPLIDAR_STATUS_ERROR = RPLIDAR_STATUS_ERROR),
-    ULInt16('error_code')
+# serial data structure returned by GET_HEALTH (3 bytes)
+rplidar_response_device_health_format = Struct("health_format",
+    Enum(Byte("status"), 
+            RPLIDAR_STATUS_OK = RPLIDAR_STATUS_OK,
+            RPLIDAR_STATUS_WARNING = RPLIDAR_STATUS_WARNING,
+            RPLIDAR_STATUS_ERROR = RPLIDAR_STATUS_ERROR),
+    ULInt16("error_code")
 )
 
-
-#serial data structure returned by SCAN -- a single point (5 bytes)
+# serial data structure returned by SCAN -- a single point (5 bytes)
 rplidar_response_device_point_format = Struct("point_format",
-    BitStruct("Byte0", BitField("sync_quality", 6), Flag("syncbit_inverse"), Flag("syncbit")),
-    BitStruct("Byte1", BitField("angle_lowbyte", 7), Flag("check_bit")), # =1
+    BitStruct("byte0", 
+                BitField("sync_quality", 6),
+                Flag("syncbit_inverse"),
+                Flag("syncbit")),
+    BitStruct("byte1", BitField("angle_lowbyte", 7), Flag("check_bit")), # =1
     ULInt8("angle_highbyte"),
-    ULInt16("distance_q2")#,
-    #Value("distance", lambda ctx: ctx["distance_q2"]/4.0),
-    #Value("angle", lambda ctx: ((ctx["angle_highbyte"] << 7) | ctx["Byte1"].angle_lowbyte)/64.0)
+    ULInt16("distance_q2")
 )
-    
 

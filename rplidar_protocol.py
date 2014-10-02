@@ -1,7 +1,7 @@
-'''
+"""
 RPLidar Protocol
 
-translated from <rplidar_protocol.h> of RPLidar SDK v1.4.5
+partly translated from <rplidar_protocol.h> of RPLidar SDK v1.4.5
 by Tong Wang
 
  * Copyright (c) 2014, RoboPeak
@@ -37,47 +37,41 @@ by Tong Wang
  *  Copyright 2009 - 2014 RoboPeak Team
  *  http://www.robopeak.com
  *  
-'''
+"""
+
 
 from construct import *
 
 
-
-
 # Protocol
-#-----------------------------------------
+# -----------------------------------------
 
 RPLIDAR_CMD_SYNC_BYTE = 0xA5
 RPLIDAR_CMDFLAG_HAS_PAYLOAD = 0x80
-
 
 RPLIDAR_ANS_SYNC_BYTE1 = 0xA5
 RPLIDAR_ANS_SYNC_BYTE2 = 0x5A
 
 #RPLIDAR_ANS_PKTFLAG_LOOP = 0x1
 
-
 #RPLIDAR_ANS_HEADER_SIZE_MASK = 0x3FFFFFFF
 #RPLIDAR_ANS_HEADER_SUBTYPE_SHIFT = 30
 
 
-
-
-
-
 # Struct
 # ------------------------------------------
-#serial data structure for CMD header (2 bytes)
-rplidar_command_format = Struct('cmd_format',
-    ULInt8('syncByte'), # must be RPLIDAR_CMD_SYNC_BYTE: A5
-    ULInt8('cmd_flag') # one byte for CMD
+
+# serial data structure for CMD header (2 bytes)
+rplidar_command_format = Struct("cmd_format",
+    ULInt8("sync_byte"), # must be RPLIDAR_CMD_SYNC_BYTE: A5
+    ULInt8("cmd_flag") # one byte for CMD
 )
 
-
-#serial data structure for response header (7 bytes)
-rplidar_response_header_format = Struct('header_format',
-    ULInt8('syncByte1'),#, 1), # must be RPLIDAR_ANS_SYNC_BYTE1: A5
-    ULInt8('syncByte2'),#, 1), # must be RPLIDAR_ANS_SYNC_BYTE2: 5A
-    ULInt32('size_q30_subtype'),#, 4), # see _u32 size:30; _u32 subType:2;
-    ULInt8('type')#, 1), # one byte for message type
+# serial data structure for response header (7 bytes)
+rplidar_response_header_format = Struct("header_format",
+    ULInt8("sync_byte1"), # must be RPLIDAR_ANS_SYNC_BYTE1: A5
+    ULInt8("sync_byte2"), # must be RPLIDAR_ANS_SYNC_BYTE2: 5A
+    ULInt32("size_q30_subtype"), # see _u32 size:30; _u32 subType:2;
+    ULInt8("type") # one byte for message type
 )
+
