@@ -26,25 +26,25 @@ class RPLidarRawFrame(object):
     Attibutes:
         timestamp: when the frame is initiated and recorded.
 
-        points: a list of points (in raw RPLidar binary format) of a complete 
+        raw_points: a list of points (in raw RPLidar binary format) of a complete 
         frame, starting from the point with syncbit == 1.
     """
     
     def __init__(self):
         self.timestamp = time.time()
-        self.points = list()
+        self.raw_points = list()
         #self.isComplete = False
     
-    def add_point(self, point):
-        """append new point to the points list."""
-        self.points.append(point)
+    def add_raw_point(self, raw_point):
+        """append new raw_point to the points list."""
+        self.raw_points.append(raw_point)
 
 
 class RPLidarFrame(object):
     """A processed frame with readily usable coordinates.
     
-    Contains a moving window (implemented by deques with maxlen=360) of the most
-    recent 360 points, each being converted from raw point data to both 
+    Contains a moving window (implemented by deques with maxlen) of the most
+    recent $maxlen$ points, each being converted from raw point data to both 
     Cartesian and polar coordinates.
     
     This is mainly for real-time visualization of the points.
@@ -64,14 +64,14 @@ class RPLidarFrame(object):
         add_point(): 
     """
     
-    def __init__(self):
+    def __init__(self, maxlen=360):
 
         #self.updated = False
-        self.angle_d = deque(maxlen = 360)
-        self.angle_r = deque(maxlen = 360)
-        self.distance = deque(maxlen = 360)
-        self.x = deque(maxlen = 360)
-        self.y = deque(maxlen = 360)
+        self.angle_d = deque(maxlen = maxlen)
+        self.angle_r = deque(maxlen = maxlen)
+        self.distance = deque(maxlen = maxlen)
+        self.x = deque(maxlen = maxlen)
+        self.y = deque(maxlen = maxlen)
         
     def add_point(self, point):
         """add a parsed point into the deques
@@ -184,12 +184,12 @@ class RPLidarMonitor(threading.Thread):
                 if raw_frame:
                     self.rplidar.raw_frames.put(raw_frame)
                     logging.debug("raw_frames qsize: %d, raw_frame length: %d.",
-                        self.rplidar.raw_frames.qsize(), len(raw_frame.points))
+                     self.rplidar.raw_frames.qsize(), len(raw_frame.raw_points))
 
                                         
                 raw_frame = RPLidarRawFrame()
             
-            raw_frame.add_point(raw_point)
+            raw_frame.add_raw_point(raw_point)
 
 
     def join(self, timeout=0.1):
