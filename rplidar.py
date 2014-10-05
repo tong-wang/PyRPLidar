@@ -38,12 +38,12 @@ class RPLidar(object):
         self.isScanning = False
         
         # init processor
-        self.processor = None
-        self.isProcessing = False
+        #self.processor = None
+        #self.isProcessing = False
         
         # data containers
         self.raw_points = Queue.Queue()
-        self.raw_frames = list()
+        self.raw_frames = Queue.Queue()
         self.current_frame = RPLidarFrame()
 
         
@@ -255,12 +255,14 @@ if __name__ == "__main__":
     #rplidar.init_polar_plot()
     rplidar.init_xy_plot()
     
-    for i in range(100):
-    #while True:
-        #rplidar.update_polar_plot()
-        rplidar.update_xy_plot()
-        time.sleep(0.15)
-
+    try:
+        while True:
+            #rplidar.update_polar_plot()
+            rplidar.update_xy_plot()
+            time.sleep(0.15)
+    except KeyboardInterrupt:
+        logging.debug("CTRL-c pressed, exiting...")
+        pass
 
     rplidar.stop_monitor()
     rplidar.disconnect()

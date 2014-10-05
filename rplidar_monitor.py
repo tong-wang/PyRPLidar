@@ -1,9 +1,8 @@
 """
 RPLidar Monitor
 
-Define classes for com port monitor that initiates a thread continuously reading
-data from serial_port
-
+Define the class for com port monitor, a thread continuously reading data from
+RPLidar on serial_port.
 
 """
 
@@ -19,27 +18,23 @@ from rplidar_types import *
 
 
 class RPLidarMonitor(threading.Thread):
-    """ A thread for monitoring a COM port.
+    """ A thread for monitoring RPLidar on a COM port.
     
-        data_q:
-            Queue for received data. Items in the queue are
-            (data, timestamp) pairs, where data is a binary 
-            string representing the received data, and timestamp
-            is the time elapsed from the thread's start (in 
-            seconds).
+        When initiated, the thread will send SCAN command to RPLidar, 
+        continously read raw data feed from RPLidar, and save the data into 
+        Queues (including self.rplidar.raw_points, self.rplidar.raw_frames, and 
+        self.rplidar.current_frame) for further processing.
+    
+        name:
+            Thread name.
         
-        port:
-            The COM port to open. Must be recognized by the 
-            system.
+        rplidar:
+            The parent rplidar instance.
         
-        port_baud/stopbits/parity: 
-            Serial communication parameters
+        alive: 
+            The monitor thread is working when alive is set() and stops when 
+            alive is clear().
         
-        port_timeout:
-            The timeout used for reading the COM port. If this
-            value is low, the thread will return data in finer
-            grained chunks, with more accurate timestamps, but
-            it will also consume more CPU.
     """
     
     
@@ -50,12 +45,7 @@ class RPLidarMonitor(threading.Thread):
         threading.Thread.__init__(self)
         self.name = "rplidar_monitor"
         self.rplidar = rplidar
-        self.serial_port = rplidar.serial_port
 
-        self.raw_points = rplidar.raw_points
-        self.raw_frames = rplidar.raw_frames
-        self.current_frame = rplidar.current_frame
-        
         self.alive = threading.Event()
         self.alive.set()
         
@@ -92,23 +82,25 @@ class RPLidarMonitor(threading.Thread):
         raw_frame = None
         
         while self.alive.isSet():
-            while self.serial_port.inWaiting() < 5:
+            while self.rplidar.serial_port.inWaiting() < 5:
                 time.sleep(.0001)
 
-            raw_point = self.serial_port.read(5)
+            raw_point = self.rplidar.serial_port.read(5)
             point = rplidar_response_device_point_format.parse(raw_point)
 
-            self.raw_points.put(raw_point)
-            self.current_frame.add_point(point)
+            self.rplidar.raw_points.put(raw_point)
+            self.rplidar.current_frame.add_point(point)
             
             # when syncbit == True, meaning a new frame starts
             # the existing frame, if any, is saved in raw_frames
             # then initialize a new empty frame
             if point.byte0.syncbit:
                 if raw_frame:
-                    self.raw_frames.append(raw_frame)
-                    #logging.debug(len(raw_frame.points))
-                    
+                    self.rplidar.raw_frames.put(raw_frame)
+                    logging.debug("raw_frames qsize: %d, raw_frame length: %d.",
+                        self.rplidar.raw_frames.qsize(), len(raw_frame.points))
+
+                                        
                 raw_frame = RPLidarRawFrame()
             
             raw_frame.add_point(raw_point)
