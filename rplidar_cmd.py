@@ -107,3 +107,7 @@ rplidar_response_device_point_format = Struct("point_format",
     ULInt16("distance_q2")
 )
 
+
+# convert binary to hex string
+toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x]).upper()
+

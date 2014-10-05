@@ -1,8 +1,8 @@
 """
 RPLidar Monitor
 
-Define the class for com port monitor, a thread continuously reading data from
-RPLidar on serial_port.
+Define classes related to the com port monitor, a thread continuously reading 
+data from RPLidar on serial_port.
 
 """
 
@@ -17,6 +17,81 @@ from rplidar_cmd import *
 from rplidar_types import *
 
 
+class RPLidarRawFrame(object):
+    """Raw frame from the RPLidar scan.
+    
+    Save the timestamp and raw points of a complete frame. This is for archiving
+    the data.
+    
+    Attibutes:
+        timestamp: when the frame is initiated and recorded.
+
+        points: a list of points (in raw RPLidar binary format) of a complete 
+        frame, starting from the point with syncbit == 1.
+    """
+    
+    def __init__(self):
+        self.timestamp = time.time()
+        self.points = list()
+        #self.isComplete = False
+    
+    def add_point(self, point):
+        """append new point to the points list."""
+        self.points.append(point)
+
+
+class RPLidarFrame(object):
+    """A processed frame with readily usable coordinates.
+    
+    Contains a moving window (implemented by deques with maxlen=360) of the most
+    recent 360 points, each being converted from raw point data to both 
+    Cartesian and polar coordinates.
+    
+    This is mainly for real-time visualization of the points.
+    
+    Attributes:
+        angle_d: a deque keeping angle in degrees
+        
+        angle_r: a deque keeping angle in radians
+        
+        distance: a deque keeping distance in millimeters
+        
+        x: a deque keeping x coordinate in millimeters
+        
+        y: a deque keeping y coordinate in millimeters
+        
+    Methods:
+        add_point(): 
+    """
+    
+    def __init__(self):
+
+        #self.updated = False
+        self.angle_d = deque(maxlen = 360)
+        self.angle_r = deque(maxlen = 360)
+        self.distance = deque(maxlen = 360)
+        self.x = deque(maxlen = 360)
+        self.y = deque(maxlen = 360)
+        
+    def add_point(self, point):
+        """add a parsed point into the deques
+        
+        Args:
+            point: a parsed point in rplidar_response_device_point_format.
+        """
+        
+        #self.updated = True
+        distance = point.distance_q2 / 4.0
+        angle_d = ((point.angle_highbyte<<7) | point.byte1.angle_lowbyte) / 64.0
+        angle_r = np.radians(angle_d)
+        
+        self.angle_d.append(angle_d)
+        self.angle_r.append(angle_r)
+        self.distance.append(distance)
+        self.x.append(distance * np.sin(angle_r))
+        self.y.append(distance * np.cos(angle_r))
+
+
 class RPLidarMonitor(threading.Thread):
     """ A thread for monitoring RPLidar on a COM port.
     
@@ -25,16 +100,13 @@ class RPLidarMonitor(threading.Thread):
         Queues (including self.rplidar.raw_points, self.rplidar.raw_frames, and 
         self.rplidar.current_frame) for further processing.
     
-        name:
-            Thread name.
+        Attributes:
+            name: thread name.
         
-        rplidar:
-            The parent rplidar instance.
+            rplidar: the parent rplidar instance.
         
-        alive: 
-            The monitor thread is working when alive is set() and stops when 
-            alive is clear().
-        
+            alive: the monitor thread is working when alive is set() and stops 
+            when alive is clear().
     """
     
     
@@ -45,7 +117,6 @@ class RPLidarMonitor(threading.Thread):
         threading.Thread.__init__(self)
         self.name = "rplidar_monitor"
         self.rplidar = rplidar
-
         self.alive = threading.Event()
         self.alive.set()
         
@@ -53,6 +124,7 @@ class RPLidarMonitor(threading.Thread):
         
         
     def start_scan(self):
+        """Send SCAN command to RPLidar."""
         
         self.rplidar.send_command(RPLIDAR_CMD_SCAN)
 
@@ -64,6 +136,7 @@ class RPLidarMonitor(threading.Thread):
 
 
     def stop_scan(self):
+        """Send STOP command to RPLidar."""
         
         self.rplidar.send_command(RPLIDAR_CMD_STOP)
 
@@ -76,6 +149,19 @@ class RPLidarMonitor(threading.Thread):
     
 
     def run(self):
+        """Main thread function.
+        
+        Continuously reads raw data feed (raw_point) from RPLidar and 
+        modifies:
+            raw_points: raw_point is directly put into it;
+            
+            current_frame: raw_point is first parsed then added into it;
+            
+            raw_frames: everytime when there is a point with syncbit==True, the 
+            previous raw_frame is put into raw_frames, a new raw_frame instance 
+            is initiated. The raw_point is added into raw_frame.
+        
+        """
 
         self.start_scan()
         

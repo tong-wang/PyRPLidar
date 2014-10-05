@@ -45,45 +45,11 @@ import time
 from collections import deque
 import numpy as np
 
-# convert binary to hex string
-toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x]).upper()
 
-
-class RPLidarRawFrame(object):
-    
-    def __init__(self):
-        self.timestamp = time.time()
-        self.points = list()
-        #self.isComplete = False
-    
-    def add_point(self, point):
-        self.points.append(point)
-
-
-class RPLidarFrame(object):
-    
-    def __init__(self):
-
-        #self.updated = False
-        self.angle_d = deque(maxlen = 360)
-        self.angle_r = deque(maxlen = 360)
-        self.distance = deque(maxlen = 360)
-        self.x = deque(maxlen = 360)
-        self.y = deque(maxlen = 360)
-        
-    def add_point(self, point):
-        
-        #self.updated = True
-        distance = point.distance_q2 / 4.0
-        angle_d = ((point.angle_highbyte<<7) | point.byte1.angle_lowbyte) / 64.0
-        angle_r = np.radians(angle_d)
-        
-        self.angle_d.append(angle_d)
-        self.angle_r.append(angle_r)
-        self.distance.append(distance)
-        self.x.append(distance * np.sin(angle_r))
-        self.y.append(distance * np.cos(angle_r))
-
+# TODO:
+#   Complete implementation of all exceptions
+#
+#
 
 class RPLidarError(Exception):
     def __init__(self, message):
