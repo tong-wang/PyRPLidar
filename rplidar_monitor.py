@@ -33,7 +33,6 @@ class RPLidarRawFrame(object):
     def __init__(self):
         self.timestamp = time.time()
         self.raw_points = list()
-        #self.isComplete = False
     
     def add_raw_point(self, raw_point):
         """append new raw_point to the points list."""
@@ -80,10 +79,9 @@ class RPLidarFrame(object):
             point: a parsed point in rplidar_response_device_point_format.
         """
         
-        #self.updated = True
-        distance = point.distance_q2 / 4.0
         angle_d = ((point.angle_highbyte<<7) | point.byte1.angle_lowbyte) / 64.0
         angle_r = np.radians(angle_d)
+        distance = point.distance_q2 / 4.0
         
         self.angle_d.append(angle_d)
         self.angle_r.append(angle_r)
@@ -155,12 +153,11 @@ class RPLidarMonitor(threading.Thread):
         modifies:
             raw_points: raw_point is directly put into it;
             
-            current_frame: raw_point is first parsed then added into it;
-            
             raw_frames: everytime when there is a point with syncbit==True, the 
             previous raw_frame is put into raw_frames, a new raw_frame instance 
             is initiated. The raw_point is added into raw_frame.
         
+            current_frame: raw_point is first parsed then added into it;
         """
 
         self.start_scan()
@@ -173,11 +170,12 @@ class RPLidarMonitor(threading.Thread):
 
             raw_point = self.rplidar.serial_port.read(5)
             point = rplidar_response_device_point_format.parse(raw_point)
-
-            self.rplidar.raw_points.put(raw_point)
-            self.rplidar.current_frame.add_point(point)
             
-            # when syncbit == True, meaning a new frame starts
+            # save to raw_points
+            self.rplidar.raw_points.put(raw_point)
+            
+            # save to raw_frames:
+            # when syncbit == True, meaning a new frame starts,
             # the existing frame, if any, is saved in raw_frames
             # then initialize a new empty frame
             if point.byte0.syncbit:
@@ -186,11 +184,12 @@ class RPLidarMonitor(threading.Thread):
                     logging.debug("raw_frames qsize: %d, raw_frame length: %d.",
                      self.rplidar.raw_frames.qsize(), len(raw_frame.raw_points))
 
-                                        
                 raw_frame = RPLidarRawFrame()
             
             raw_frame.add_raw_point(raw_point)
 
+            # save to current_frame
+            self.rplidar.current_frame.add_point(point)
 
     def join(self, timeout=0.1):
 
