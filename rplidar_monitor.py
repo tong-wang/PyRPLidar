@@ -194,6 +194,6 @@ class RPLidarMonitor(threading.Thread):
     def join(self, timeout=0.1):
 
         self.alive.clear()
-        self.stop_scan()        
+        self.stop_scan()
         threading.Thread.join(self, timeout)
         logging.debug("rplidar_monitor thread closed.")

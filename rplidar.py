@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from rplidar_monitor import *
+from rplidar_archiver import *
 
 
 class RPLidar(object):
@@ -37,6 +38,10 @@ class RPLidar(object):
         self.monitor = None
         self.isScanning = False
         
+        # init archiver
+        self.archiver = None
+        self.isArchiving = False
+
         # init processor
         #self.processor = None
         #self.isProcessing = False
@@ -146,11 +151,9 @@ class RPLidar(object):
 
 
     def start_monitor(self):
-        """ Start the monitor: monitor thread
-        """
+        """ Start the monitor thread """
         
         if not self.isScanning:
-        
             logging.debug("Try to start monitor thread.")
             self.monitor = RPLidarMonitor(self)
             self.monitor.start()
@@ -168,15 +171,31 @@ class RPLidar(object):
             logging.debug("Try to stop monitor thread.")
             self.monitor.join()
             self.monitor = None
-            
+
 #        if self.isProcessing:
 #            self.isProcessing = False;
 #            self.processor.join()
 #            self.processor = None
 
-#            logging.debug("Processor stopped.")
-    
-            
+
+    def start_archiver(self):
+        """ Start the archiver thread """
+        
+        if not self.isArchiving:
+            logging.debug("Try to start archiver thread.")
+            self.archiver = RPLidarArchiver(self)
+            self.archiver.start()
+
+                        
+    def stop_archiver(self):
+        """ Stop the archiver thread """
+
+        if self.isArchiving:
+            logging.debug("Try to stop archiver thread.")
+            self.archiver.join()
+            self.archiver = None
+
+
     def init_xy_plot(self):
         """ setup an XY plot canvas """
         
@@ -251,6 +270,7 @@ if __name__ == "__main__":
 
 
     rplidar.start_monitor()
+    rplidar.start_archiver()
     
     #rplidar.init_polar_plot()
     rplidar.init_xy_plot()
@@ -265,5 +285,6 @@ if __name__ == "__main__":
         pass
 
     rplidar.stop_monitor()
+    rplidar.stop_archiver()
     rplidar.disconnect()
     rplidar = None
