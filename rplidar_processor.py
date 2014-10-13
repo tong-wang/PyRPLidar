@@ -20,40 +20,6 @@ from rplidar_cmd import *
 from rplidar_types import *
 
 
-
-
-
-       
-        
-        
-class RPLidarPoint(object):
-    
-    def __init__(self, rawPoint):
-
-        #self.timestamp = time.clock()
-        self.raw = rawPoint
-        
-        _parsed = rplidar_response_device_point_format.parse(rawPoint)
-        
-        self.syncbit = _parsed.Byte0.syncbit
-        self.syncbit_inverse = _parsed.Byte0.syncbit_inverse
-        self.quality = _parsed.Byte0.sync_quality
-        
-        self.check_bit = _parsed.Byte1.check_bit
-        self.angleD = ((_parsed.angle_highbyte << 7) | _parsed.Byte1.angle_lowbyte) / 64.0
-        self.angle = np.radians(self.angleD)
-        
-        self.distance = _parsed.distance_q2 / 4.0
-        
-        self.X = self.distance * np.sin(self.angle)
-        self.Y = self.distance * np.cos(self.angle)
-        
-        
-
-    
-
-
-
 class RPLidarProcessor(threading.Thread):
     """ A thread for processing data from rplidar_monitor
     """

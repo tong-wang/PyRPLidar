@@ -15,7 +15,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from rplidar_monitor import *
-from rplidar_archiver import *
 
 
 class RPLidar(object):
@@ -36,15 +35,6 @@ class RPLidar(object):
         
         # init monitor
         self.monitor = None
-        self.isScanning = False
-        
-        # init archiver
-        self.archiver = None
-        self.isArchiving = False
-
-        # init processor
-        #self.processor = None
-        #self.isProcessing = False
         
         # data containers
         self.raw_points = Queue.Queue()
@@ -150,50 +140,22 @@ class RPLidar(object):
             raise RPLidarError("RESULT_INVALID_ANS_TYPE")
 
 
-    def start_monitor(self):
+    def start_monitor(self, archive=False):
         """ Start the monitor thread """
         
-        if not self.isScanning:
+        if self.monitor is None:
             logging.debug("Try to start monitor thread.")
-            self.monitor = RPLidarMonitor(self)
+            self.monitor = RPLidarMonitor(self, archive=archive)
             self.monitor.start()
 
-#            self.processor = RPLidarProcessor(self)
-#            self.processor.start()
-#            self.isProcessing = True
-#            logging.debug("Processor running.")
-    
 
     def stop_monitor(self):
         """ Stop the monitor """
 
-        if self.monitor:
+        if self.monitor is not None:
             logging.debug("Try to stop monitor thread.")
             self.monitor.join()
             self.monitor = None
-
-#        if self.isProcessing:
-#            self.isProcessing = False;
-#            self.processor.join()
-#            self.processor = None
-
-
-    def start_archiver(self):
-        """ Start the archiver thread """
-        
-        if not self.isArchiving:
-            logging.debug("Try to start archiver thread.")
-            self.archiver = RPLidarArchiver(self)
-            self.archiver.start()
-
-                        
-    def stop_archiver(self):
-        """ Stop the archiver thread """
-
-        if self.isArchiving:
-            logging.debug("Try to stop archiver thread.")
-            self.archiver.join()
-            self.archiver = None
 
 
     def init_xy_plot(self):
@@ -269,8 +231,7 @@ if __name__ == "__main__":
     print rplidar.get_health()
 
 
-    rplidar.start_monitor()
-    rplidar.start_archiver()
+    rplidar.start_monitor(archive=True)
     
     #rplidar.init_polar_plot()
     rplidar.init_xy_plot()
@@ -285,6 +246,5 @@ if __name__ == "__main__":
         pass
 
     rplidar.stop_monitor()
-    rplidar.stop_archiver()
     rplidar.disconnect()
     rplidar = None

@@ -1,8 +1,8 @@
 """
 RPLidar Monitor
 
-Define classes related to the com port monitor, a thread continuously reading 
-data from RPLidar on serial_port.
+Define the class for com port monitor, a thread continuously reading data from 
+RPLidar on serial_port.
 
 """
 
@@ -15,79 +15,7 @@ import time
 from rplidar_protocol  import *
 from rplidar_cmd import *
 from rplidar_types import *
-
-
-class RPLidarRawFrame(object):
-    """Raw frame from the RPLidar scan.
-    
-    Save the timestamp and raw points of a complete frame. This is for archiving
-    the data.
-    
-    Attibutes:
-        timestamp: when the frame is initiated and recorded.
-
-        raw_points: a list of points (in raw RPLidar binary format) of a complete 
-        frame, starting from the point with syncbit == 1.
-    """
-    
-    def __init__(self):
-        self.timestamp = time.time()
-        self.raw_points = list()
-    
-    def add_raw_point(self, raw_point):
-        """append new raw_point to the points list."""
-        self.raw_points.append(raw_point)
-
-
-class RPLidarFrame(object):
-    """A processed frame with readily usable coordinates.
-    
-    Contains a moving window (implemented by deques with maxlen) of the most
-    recent $maxlen$ points, each being converted from raw point data to both 
-    Cartesian and polar coordinates.
-    
-    This is mainly for real-time visualization of the points.
-    
-    Attributes:
-        angle_d: a deque keeping angle in degrees
-        
-        angle_r: a deque keeping angle in radians
-        
-        distance: a deque keeping distance in millimeters
-        
-        x: a deque keeping x coordinate in millimeters
-        
-        y: a deque keeping y coordinate in millimeters
-        
-    Methods:
-        add_point(): 
-    """
-    
-    def __init__(self, maxlen=360):
-
-        #self.updated = False
-        self.angle_d = deque(maxlen = maxlen)
-        self.angle_r = deque(maxlen = maxlen)
-        self.distance = deque(maxlen = maxlen)
-        self.x = deque(maxlen = maxlen)
-        self.y = deque(maxlen = maxlen)
-        
-    def add_point(self, point):
-        """add a parsed point into the deques
-        
-        Args:
-            point: a parsed point in rplidar_response_device_point_format.
-        """
-        
-        angle_d = ((point.angle_highbyte<<7) | point.byte1.angle_lowbyte) / 64.0
-        angle_r = np.radians(angle_d)
-        distance = point.distance_q2 / 4.0
-        
-        self.angle_d.append(angle_d)
-        self.angle_r.append(angle_r)
-        self.distance.append(distance)
-        self.x.append(distance * np.sin(angle_r))
-        self.y.append(distance * np.cos(angle_r))
+from rplidar_archiver import *
 
 
 class RPLidarMonitor(threading.Thread):
@@ -105,10 +33,14 @@ class RPLidarMonitor(threading.Thread):
         
             alive: the monitor thread is working when alive is set() and stops 
             when alive is clear().
+            
+            archive: the flag indicating whether to archive data.
+
+            archiver: the archiver instance.
     """
     
     
-    def __init__(self, rplidar):
+    def __init__(self, rplidar, archive=False):
 
         logging.debug("Initializing rplidar_monitor thread.")
 
@@ -118,6 +50,10 @@ class RPLidarMonitor(threading.Thread):
         self.alive = threading.Event()
         self.alive.set()
         
+        # init archiver
+        self.archive = archive
+        self.archiver = None
+
         logging.debug("rplidar_monitor thread initialized.")
         
         
@@ -129,8 +65,11 @@ class RPLidarMonitor(threading.Thread):
         if self.rplidar.response_header() != RPLIDAR_ANS_TYPE_MEASUREMENT:
             raise RPLidarError("RESULT_INVALID_MEASUREMENT_HEADER")
 
-        self.rplidar.isScanning = True
         logging.debug("Start scanning.")
+        
+        if self.archive:
+            self.start_archiver()
+
 
 
     def stop_scan(self):
@@ -142,10 +81,30 @@ class RPLidarMonitor(threading.Thread):
         # until the STOP command is executed by RPLidar
         time.sleep(0.1) 
         
-        self.rplidar.isScanning = False;
         logging.debug("Stop scanning.")
     
+        if self.archive:
+            self.stop_archiver()
 
+
+    def start_archiver(self):
+        """ Start the archiver thread """
+        
+        if self.archiver is None:
+            logging.debug("Try to start archiver thread.")
+            self.archiver = RPLidarArchiver(self.rplidar)
+            self.archiver.start()
+
+                        
+    def stop_archiver(self):
+        """ Stop the archiver thread """
+
+        if self.archiver is not None:
+            logging.debug("Try to stop archiver thread.")
+            self.archiver.join()
+            self.archiver = None
+
+    
     def run(self):
         """Main thread function.
         
@@ -190,6 +149,7 @@ class RPLidarMonitor(threading.Thread):
 
             # save to current_frame
             self.rplidar.current_frame.add_point(point)
+
 
     def join(self, timeout=0.1):
 
