@@ -61,7 +61,6 @@ RPLIDAR_CMD_GET_DEVICE_HEALTH = 0x52
 # ------------------------------------------
 
 RPLIDAR_ANS_TYPE_MEASUREMENT = 0x81
-
 RPLIDAR_ANS_TYPE_DEVINFO = 0x4
 RPLIDAR_ANS_TYPE_DEVHEALTH = 0x6
 
@@ -69,10 +68,10 @@ RPLIDAR_STATUS_OK = 0x0
 RPLIDAR_STATUS_WARNING = 0x1
 RPLIDAR_STATUS_ERROR = 0x2
 
-RPLIDAR_RESP_MEASUREMENT_SYNCBIT = (0x1<<0)
-RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT = 2
-RPLIDAR_RESP_MEASUREMENT_CHECKBIT = (0x1<<0)
-RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT = 1
+#RPLIDAR_RESP_MEASUREMENT_SYNCBIT = (0x1<<0)
+#RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT = 2
+#RPLIDAR_RESP_MEASUREMENT_CHECKBIT = (0x1<<0)
+#RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT = 1
 
 
 # Struct
@@ -102,7 +101,9 @@ rplidar_response_device_point_format = Struct("point_format",
                 BitField("sync_quality", 6),
                 Flag("syncbit_inverse"),
                 Flag("syncbit")),
-    BitStruct("byte1", BitField("angle_lowbyte", 7), Flag("check_bit")), # =1
+    BitStruct("byte1",
+                BitField("angle_lowbyte", 7),
+                Const(Flag("check_bit"), 1)), # check_bit must be 1
     ULInt8("angle_highbyte"),
     ULInt16("distance_q2")
 )

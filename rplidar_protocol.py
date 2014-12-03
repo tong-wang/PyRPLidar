@@ -71,7 +71,11 @@ rplidar_command_format = Struct("cmd_format",
 rplidar_response_header_format = Struct("header_format",
     ULInt8("sync_byte1"), # must be RPLIDAR_ANS_SYNC_BYTE1: A5
     ULInt8("sync_byte2"), # must be RPLIDAR_ANS_SYNC_BYTE2: 5A
-    ULInt32("size_q30_subtype"), # see _u32 size:30; _u32 subType:2;
-    ULInt8("type") # one byte for message type
+    #ULInt32("size_q30_subtype"), # see _u32 size:30; _u32 subType:2;
+    ULInt24("response_size"),
+    BitStruct("response_mode", 
+            Enum(BitField("mode", 2), SINGLE = 0x0, MULTI = 0x1, _default_ = "UNDEFINED"),
+            Padding(6)),
+    ULInt8("response_type") # one byte for message type
 )
 
