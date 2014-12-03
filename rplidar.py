@@ -50,9 +50,9 @@ class RPLidar(object):
         if not self.isConnected:
             try:
                 self.serial_port = serial.Serial(**self.serial_arg)
-                self.stop_motor()
                 self.isConnected = True
                 logging.debug("Connected to RPLidar on port %s", self.portname)
+                self.stop_motor()
             except serial.SerialException as e:
                 logging.error(e.message)
                
@@ -74,6 +74,7 @@ class RPLidar(object):
 
         self.send_command(RPLIDAR_CMD_RESET)
         logging.debug("Command RESET sent.")
+        time.sleep(0.1)
         
 
     def start_motor(self):
@@ -120,7 +121,7 @@ class RPLidar(object):
                     (parsed.sync_byte2 != RPLIDAR_ANS_SYNC_BYTE2)):
                     raise RPLidarError("RESULT_INVALID_ANS_HEADER")
                 else:
-                    return parsed.type
+                    return parsed.response_type
     
         raise RPLidarError("RESULT_READING_TIMEOUT")
     
