@@ -60,7 +60,7 @@ class RPLidarMonitor(threading.Thread):
     def start_scan(self):
         """Send SCAN command to RPLidar."""
 
-        self.start_motor()
+        self.rplidar.start_motor()
         self.rplidar.send_command(RPLIDAR_CMD_SCAN)
 
         if self.rplidar.response_header() != RPLIDAR_ANS_TYPE_MEASUREMENT:
@@ -71,21 +71,11 @@ class RPLidarMonitor(threading.Thread):
         if self.archive:
             self.start_archiver()
 
-    def start_motor(self):
-        """Send START command to RPLidar motor."""
-
-        self.rplidar.serial_port.setDTR(False)
-
-    def stop_motor(self):
-        """Send STOP command to RPLidar motor."""
-
-        self.rplidar.serial_port.setDTR(True)
-
 
     def stop_scan(self):
         """Send STOP command to RPLidar."""
 
-        self.stop_motor()
+        self.rplidar.stop_motor()
         self.rplidar.send_command(RPLIDAR_CMD_STOP)
 
         # it seems to be very important to have a pause here
